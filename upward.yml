@@ -17,3 +17,44 @@
 status: veniaResponse.status
 headers: veniaResponse.headers
 body: veniaResponse.body
+veniaResponse:
+  resolver: conditional
+  when:
+    # Requests to graphql/rest endpoints, the media library, and cache are
+    # handled by the top-level 'veniaProxy' object, which is a ProxyResolver
+    # that passes the request through to the backing Magento server.
+    - matches: request.url.pathname
+      pattern: '^/(graphql|rest|media)(/|$)'
+      use: veniaProxy
+    - matches: request.url.pathname
+      pattern: '^/(robots\.txt|favicon\.ico|manifest\.json)'
+      use: staticFromRoot
+    - matches: fileExtension
+      pattern: '(js|json|png|jpg|gif|svg|ico|css|txt|ttf|woff|woff2)'
+      use: veniaStatic
+  default: veniaAppShell
+veniaSecurityHeaders:
+  resolver: inline
+  inline:
+    content-security-policy:
+      resolver: template
+      engine: mustache
+      provide:
+        backend: env.MAGENTO_BACKEND_URL
+      template:
+        resolver: conditional
+        when:
+          - matches: env.NODE_ENV
+            pattern: development
+            use:
+              inline: ""
+        default:
+          inline: "script-src http: https: {{ backend }}; style-src 'self' blob: https: 'unsafe-inline' {{ backend }}; img-src data: http: https:; object-src 'none'; base-uri 'none'; child-src 'self'; font-src 'self' fonts.gstatic.com; frame-src assets.braintreegateway.com *.youtube.com *.youtu.be *.vimeo.com"
+    strict-transport-security:
+      inline: max-age=31536000
+    x-content-type-options:
+      inline: nosniff
+    x-frame-options:
+      inline: SAMEORIGIN
+    x-xss-protection:
+      inline: '1; mode=block'
